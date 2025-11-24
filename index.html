@@ -1,3 +1,15 @@
+Here is the fully updated code.
+
+I have implemented the **"Exponential Curve"** logic:
+
+  * **Debt 1-4:** Almost no help (Realism Mode).
+  * **Debt 5:** **25%** chance to help.
+  * **Debt 9:** **81%** chance to help (Visual "Glow" triggers here).
+  * **Debt 10:** **100%** chance to help.
+
+The visual "Purple Pulse" now waits until **Debt 9** to activate, matching that feeling of critical desperation.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,7 +22,7 @@
             --card-color: #24283b;
             --text-color: #c0caf5;
             --accent-color: #7aa2f7;
-            --glow-color: #bb9af7; /* A subtle purple/white glow for "Charged" state */
+            --glow-color: #bb9af7; /* Purple/White for "Charged" state */
         }
 
         body {
@@ -70,7 +82,7 @@
             padding: 20px;
             border-radius: 15px;
             cursor: pointer;
-            transition: all 0.3s ease; /* Smooth transition for the glow */
+            transition: all 0.3s ease;
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -79,7 +91,7 @@
         .die-btn:hover { background: var(--accent-color); transform: translateY(-2px); }
         .die-btn:active { transform: scale(0.95); }
 
-        /* --- THE CHARGED EFFECT (Debt > 80%) --- */
+        /* --- THE CHARGED EFFECT (Debt >= 9) --- */
         @keyframes powerPulse {
             0% { box-shadow: 0 0 0 0 rgba(187, 154, 247, 0.4); border-color: var(--accent-color); }
             50% { box-shadow: 0 0 20px 0 rgba(187, 154, 247, 0.7); border-color: var(--glow-color); }
@@ -175,11 +187,11 @@
             document.getElementById('dice-count').innerText = diceCount;
         }
 
-        // New function to handle the "Charging" visual effect
+        // Handles the "Charging" visual effect
         function updateGridVisuals() {
             const buttons = document.querySelectorAll('.die-btn');
-            // Debt of 8 = 80% intervention chance. This is the threshold.
-            if (luckDebt >= 8) {
+            // VISUAL THRESHOLD: Debt >= 9 (81% chance)
+            if (luckDebt >= 9) {
                 buttons.forEach(btn => btn.classList.add('charged'));
             } else {
                 buttons.forEach(btn => btn.classList.remove('charged'));
@@ -201,8 +213,9 @@
             const good = isGoodRoll(rawRoll, sides);
 
             if (!good) {
-                // Slower Debt Curve: 10% chance per point of debt
-                let interventionChance = luckDebt * 0.10; 
+                // EXPONENTIAL CURVE: (Debt / 10)^2
+                // Debt 5 = 25% | Debt 8 = 64% | Debt 9 = 81% | Debt 10 = 100%
+                let interventionChance = Math.pow((luckDebt / 10), 2); 
                 
                 if (Math.random() < interventionChance) {
                     // Secret Reroll
@@ -225,7 +238,7 @@
                 logMsg = "Natural Good";
             }
 
-            return { val: finalRoll, msg: logMsg };
+            return { val: finalRoll, msg: logMsg, chance: (Math.pow((luckDebt/10), 2) * 100).toFixed(0) + "%" };
         }
 
         // === MAIN ROLL FUNCTION ===
@@ -254,7 +267,9 @@
                     let result = getSingleRoll(sides);
                     total += result.val;
                     resultsHTML += `<div class="mini-die">${result.val}</div>`;
-                    consoleLogGroup.push(`Die ${i+1}: [${result.val}] (${result.msg})`);
+                    
+                    // Detailed logging for dev verification
+                    consoleLogGroup.push(`Die ${i+1}: [${result.val}] (${result.msg}) | Help Chance was: ${result.chance}`);
                 }
 
                 // Update UI - Pure Numbers
@@ -276,3 +291,4 @@
     </script>
 </body>
 </html>
+```

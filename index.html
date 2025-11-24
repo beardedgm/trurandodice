@@ -3,16 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Karmic Dice Roller v2</title>
+    <title>Dice Roller</title>
     <style>
         :root {
             --bg-color: #1a1b26;
             --card-color: #24283b;
             --text-color: #c0caf5;
             --accent-color: #7aa2f7;
-            --lucky-color: #9ece6a;
-            --bad-color: #f7768e;
-            --lucky-glow: 0 0 15px rgba(158, 206, 106, 0.4);
         }
 
         body {
@@ -28,12 +25,9 @@
             user-select: none;
         }
 
-        /* --- Header / Controls --- */
+        /* --- Header / Quantity Selector --- */
         .top-bar {
-            display: flex;
-            gap: 20px;
             margin-bottom: 30px;
-            align-items: center;
         }
 
         .control-pill {
@@ -47,27 +41,8 @@
             height: 40px;
         }
 
-        .lucky-active {
-            border: 1px solid var(--lucky-color);
-            box-shadow: var(--lucky-glow);
-        }
-
-        /* Toggle Switch */
-        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc; transition: .4s; border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute; content: ""; height: 20px; width: 20px;
-            left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%;
-        }
-        input:checked + .slider { background-color: var(--lucky-color); }
-        input:checked + .slider:before { transform: translateX(22px); }
         .label-text { font-weight: bold; font-size: 1rem; color: #fff; }
 
-        /* Quantity Counter */
         .qty-btn {
             background: var(--accent-color);
             border: none; color: white; width: 25px; height: 25px; border-radius: 50%;
@@ -115,7 +90,7 @@
             font-weight: bold;
             margin: 0;
             text-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            transition: color 0.3s;
+            color: var(--text-color); /* Always neutral color */
         }
 
         #result-details {
@@ -133,9 +108,6 @@
             font-size: 1.2rem;
             color: #ccc;
         }
-        
-        .mini-die.good { color: var(--lucky-color); border: 1px solid var(--lucky-color); }
-        .mini-die.bad { color: var(--bad-color); }
 
         #result-label {
             font-size: 1.2rem; color: #565f89; text-transform: uppercase; letter-spacing: 2px;
@@ -154,16 +126,8 @@
 <body>
 
     <div class="top-bar">
-        <div class="control-pill" id="karmicPanel">
-            <span class="label-text">Feeling Lucky?</span>
-            <label class="switch">
-                <input type="checkbox" id="luckyToggle">
-                <span class="slider"></span>
-            </label>
-        </div>
-
         <div class="control-pill">
-            <span class="label-text">Dice:</span>
+            <span class="label-text">Dice Count:</span>
             <button class="qty-btn" onclick="adjustCount(-1)">-</button>
             <span id="dice-count">1</span>
             <button class="qty-btn" onclick="adjustCount(1)">+</button>
@@ -189,31 +153,17 @@
         // === STATE ===
         let luckDebt = 0;
         let diceCount = 1;
-        const toggle = document.getElementById('luckyToggle');
-        const karmicPanel = document.getElementById('karmicPanel');
         
         // === UI HELPERS ===
         function adjustCount(amount) {
-            diceCount = Math.max(1, Math.min(10, diceCount + amount)); // Cap between 1 and 10
+            diceCount = Math.max(1, Math.min(10, diceCount + amount));
             document.getElementById('dice-count').innerText = diceCount;
         }
 
-        toggle.addEventListener('change', (e) => {
-            if(e.target.checked) {
-                karmicPanel.classList.add('lucky-active');
-                console.log("System: Karmic Mode ON.");
-            } else {
-                karmicPanel.classList.remove('lucky-active');
-                luckDebt = 0; // Reset debt if they switch it off
-                console.log("System: Karmic Mode OFF.");
-            }
-        });
-
-        // === LOGIC ===
-        
+        // === INTERNAL LOGIC (Hidden) ===
         function isGoodRoll(val, sides) {
-            if (sides === 20) return val >= 13;
-            return val > (sides / 2);
+            if (sides === 20) return val >= 13; // Hero Rule
+            return val > (sides / 2); // Standard Rule
         }
 
         function getSingleRoll(sides) {
@@ -221,35 +171,34 @@
             let finalRoll = rawRoll;
             let logMsg = "Standard";
 
-            if (toggle.checked) {
-                const good = isGoodRoll(rawRoll, sides);
+            // Karmic Logic (Always Active)
+            const good = isGoodRoll(rawRoll, sides);
 
-                if (!good) {
-                    // SLOWER DEBT CURVE: 10% chance per point of debt
-                    // A debt of 5 is needed for a 50/50 shot at intervention
-                    let interventionChance = luckDebt * 0.10; 
-                    
-                    if (Math.random() < interventionChance) {
-                        // Secret Reroll
-                        let reroll = Math.floor(Math.random() * sides) + 1;
-                        if (isGoodRoll(reroll, sides)) {
-                            finalRoll = reroll;
-                            luckDebt = Math.max(0, luckDebt - 2); // 'Soft Decay' (Costs 2 to succeed)
-                            logMsg = "SAVED (Karmic)";
-                        } else {
-                            luckDebt++;
-                            logMsg = "FAILED SAVE";
-                        }
+            if (!good) {
+                // Slower Debt Curve: 10% chance per point of debt
+                let interventionChance = luckDebt * 0.10; 
+                
+                if (Math.random() < interventionChance) {
+                    // Secret Reroll
+                    let reroll = Math.floor(Math.random() * sides) + 1;
+                    if (isGoodRoll(reroll, sides)) {
+                        finalRoll = reroll;
+                        luckDebt = Math.max(0, luckDebt - 2); // Soft Decay
+                        logMsg = "SAVED (Karmic)";
                     } else {
-                        luckDebt++; // Just bad luck
-                        logMsg = "Bad Luck";
+                        luckDebt++;
+                        logMsg = "FAILED SAVE";
                     }
                 } else {
-                    // Rolled Good Naturally -> Soft Decay
-                    if (luckDebt > 0) luckDebt--;
-                    logMsg = "Natural Good";
+                    luckDebt++; // Debt increases
+                    logMsg = "Bad Luck";
                 }
+            } else {
+                // Natural Good Roll -> Soft Decay
+                if (luckDebt > 0) luckDebt--;
+                logMsg = "Natural Good";
             }
+
             return { val: finalRoll, msg: logMsg };
         }
 
@@ -263,11 +212,13 @@
             totalDisplay.classList.remove('rolling');
             void totalDisplay.offsetWidth;
             totalDisplay.classList.add('rolling');
+            
+            // Temporary loading state
             totalDisplay.innerText = "...";
             detailsDisplay.innerHTML = "";
-            labelDisplay.innerText = `Rolling ${diceCount}d${sides}...`;
+            labelDisplay.innerText = "Rolling...";
 
-            // Calculate results
+            // Delay for dramatic effect
             setTimeout(() => {
                 let total = 0;
                 let resultsHTML = "";
@@ -277,41 +228,22 @@
                     let result = getSingleRoll(sides);
                     total += result.val;
                     
-                    // Styling for individual dice bubbles
-                    let good = isGoodRoll(result.val, sides);
-                    let classType = good ? "good" : "bad";
-                    resultsHTML += `<div class="mini-die ${classType}">${result.val}</div>`;
+                    // Simple white bubbles only
+                    resultsHTML += `<div class="mini-die">${result.val}</div>`;
                     
                     consoleLogGroup.push(`Die ${i+1}: [${result.val}] (${result.msg})`);
                 }
 
-                // Update UI
+                // Update UI - Pure Numbers
                 totalDisplay.innerText = total;
                 detailsDisplay.innerHTML = resultsHTML;
-                
-                // Color the TOTAL score
-                // If it's a single die, use the standard color rules
-                // If multiple, just use white unless it's a 'perfect' roll
-                if (diceCount === 1) {
-                    if (isGoodRoll(total, sides)) {
-                        totalDisplay.style.color = "#9ece6a"; 
-                        labelDisplay.innerText = "Success!";
-                    } else {
-                        totalDisplay.style.color = "#f7768e";
-                        labelDisplay.innerText = "Result";
-                    }
-                } else {
-                    totalDisplay.style.color = "#c0caf5"; // Default text color
-                    labelDisplay.innerText = "Total Result";
-                }
+                labelDisplay.innerText = `Result`;
 
-                // Developer Logs
-                if (toggle.checked) {
-                    console.group(`Rolling ${diceCount}d${sides}`);
-                    consoleLogGroup.forEach(log => console.log(log));
-                    console.log(`Current Karmic Debt: ${luckDebt}`);
-                    console.groupEnd();
-                }
+                // Developer Logs (Only visible in F12 Console)
+                console.group(`Rolling ${diceCount}d${sides}`);
+                consoleLogGroup.forEach(log => console.log(log));
+                console.log(`Current Hidden Debt: ${luckDebt}`);
+                console.groupEnd();
 
             }, 400);
         }

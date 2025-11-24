@@ -10,6 +10,7 @@
             --card-color: #24283b;
             --text-color: #c0caf5;
             --accent-color: #7aa2f7;
+            --glow-color: #bb9af7; /* A subtle purple/white glow for "Charged" state */
         }
 
         body {
@@ -69,12 +70,26 @@
             padding: 20px;
             border-radius: 15px;
             cursor: pointer;
-            transition: transform 0.1s, background 0.2s;
+            transition: all 0.3s ease; /* Smooth transition for the glow */
             text-align: center;
+            position: relative;
+            overflow: hidden;
         }
 
         .die-btn:hover { background: var(--accent-color); transform: translateY(-2px); }
         .die-btn:active { transform: scale(0.95); }
+
+        /* --- THE CHARGED EFFECT (Debt > 80%) --- */
+        @keyframes powerPulse {
+            0% { box-shadow: 0 0 0 0 rgba(187, 154, 247, 0.4); border-color: var(--accent-color); }
+            50% { box-shadow: 0 0 20px 0 rgba(187, 154, 247, 0.7); border-color: var(--glow-color); }
+            100% { box-shadow: 0 0 0 0 rgba(187, 154, 247, 0.4); border-color: var(--accent-color); }
+        }
+
+        .die-btn.charged {
+            animation: powerPulse 2s infinite;
+            border-color: var(--glow-color);
+        }
 
         /* --- Result Display --- */
         .result-area {
@@ -90,7 +105,7 @@
             font-weight: bold;
             margin: 0;
             text-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            color: var(--text-color); /* Always neutral color */
+            color: var(--text-color);
         }
 
         #result-details {
@@ -160,6 +175,17 @@
             document.getElementById('dice-count').innerText = diceCount;
         }
 
+        // New function to handle the "Charging" visual effect
+        function updateGridVisuals() {
+            const buttons = document.querySelectorAll('.die-btn');
+            // Debt of 8 = 80% intervention chance. This is the threshold.
+            if (luckDebt >= 8) {
+                buttons.forEach(btn => btn.classList.add('charged'));
+            } else {
+                buttons.forEach(btn => btn.classList.remove('charged'));
+            }
+        }
+
         // === INTERNAL LOGIC (Hidden) ===
         function isGoodRoll(val, sides) {
             if (sides === 20) return val >= 13; // Hero Rule
@@ -227,10 +253,7 @@
                 for (let i = 0; i < diceCount; i++) {
                     let result = getSingleRoll(sides);
                     total += result.val;
-                    
-                    // Simple white bubbles only
                     resultsHTML += `<div class="mini-die">${result.val}</div>`;
-                    
                     consoleLogGroup.push(`Die ${i+1}: [${result.val}] (${result.msg})`);
                 }
 
@@ -239,7 +262,10 @@
                 detailsDisplay.innerHTML = resultsHTML;
                 labelDisplay.innerText = `Result`;
 
-                // Developer Logs (Only visible in F12 Console)
+                // Update Visuals based on new Debt level
+                updateGridVisuals();
+
+                // Developer Logs
                 console.group(`Rolling ${diceCount}d${sides}`);
                 consoleLogGroup.forEach(log => console.log(log));
                 console.log(`Current Hidden Debt: ${luckDebt}`);

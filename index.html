@@ -1,0 +1,308 @@
+Here is the complete, single-file solution. I have built this so you can simply save it as `index.html` and run it in any browser.
+
+It includes the **Visuals**, the **Toggle**, and the **Secret "Invisible Hand" Logic** based on your specific "13+" rule.
+
+### How to use this:
+
+1.  Copy the code block below.
+2.  Paste it into a text editor (Notepad, TextEdit, VS Code).
+3.  Save the file as `dice.html`.
+4.  Double-click to open it in your browser.
+
+**Note for you (The Developer):** Open the **Console** (F12 -\> Console) while testing. I have left secret logs there so you can see when the "Karmic Debt" is accumulating and when it secretly saves a bad roll.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karmic Dice Roller</title>
+    <style>
+        :root {
+            --bg-color: #1a1b26;
+            --card-color: #24283b;
+            --text-color: #c0caf5;
+            --accent-color: #7aa2f7;
+            --lucky-color: #9ece6a; /* Green for lucky */
+            --lucky-glow: 0 0 15px rgba(158, 206, 106, 0.4);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* --- The Toggle Switch --- */
+        .controls {
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: var(--card-color);
+            padding: 15px 25px;
+            border-radius: 50px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .controls.lucky-active {
+            border: 1px solid var(--lucky-color);
+            box-shadow: var(--lucky-glow);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--lucky-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .label-text {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #fff;
+        }
+
+        /* --- Dice Grid --- */
+        .dice-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 600px;
+        }
+
+        .die-btn {
+            background: var(--card-color);
+            border: 2px solid var(--accent-color);
+            color: white;
+            font-size: 1.2rem;
+            padding: 20px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .die-btn:hover {
+            background: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .die-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* --- Result Display --- */
+        .result-area {
+            margin-top: 50px;
+            text-align: center;
+            height: 120px; /* Fixed height to prevent jumping */
+        }
+
+        #result-value {
+            font-size: 5rem;
+            font-weight: bold;
+            margin: 0;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        #result-label {
+            font-size: 1.2rem;
+            color: #565f89;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Animation class */
+        .rolling {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls" id="controlPanel">
+        <span class="label-text">Feeling Lucky?</span>
+        <label class="switch">
+            <input type="checkbox" id="luckyToggle">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <div class="dice-grid">
+        <button class="die-btn" onclick="rollDice(4)">d4</button>
+        <button class="die-btn" onclick="rollDice(6)">d6</button>
+        <button class="die-btn" onclick="rollDice(8)">d8</button>
+        <button class="die-btn" onclick="rollDice(10)">d10</button>
+        <button class="die-btn" onclick="rollDice(12)">d12</button>
+        <button class="die-btn" onclick="rollDice(20)">d20</button>
+    </div>
+
+    <div class="result-area">
+        <p id="result-label">Ready to Roll</p>
+        <h1 id="result-value">--</h1>
+    </div>
+
+    <script>
+        /* === THE INVISIBLE HAND ENGINE === 
+         This logic is hidden from the user UI.
+        */
+        
+        let luckDebt = 0; // Tracks how "owed" a good roll is
+        const toggle = document.getElementById('luckyToggle');
+        const controlPanel = document.getElementById('controlPanel');
+        
+        // Toggle styling
+        toggle.addEventListener('change', (e) => {
+            if(e.target.checked) {
+                controlPanel.classList.add('lucky-active');
+                console.log("System: Karmic Mode ENGAGED.");
+            } else {
+                controlPanel.classList.remove('lucky-active');
+                luckDebt = 0; // Reset debt when turned off
+                console.log("System: Standard Random Mode.");
+            }
+        });
+
+        // Helper: Is this roll considered "Good" based on your rules?
+        function isGoodRoll(val, sides) {
+            if (sides === 20) {
+                return val >= 13; // Hero Rule: 13+ is good for d20
+            }
+            return val > (sides / 2); // Standard Rule: >50% is good for others
+        }
+
+        // The Core Logic
+        function getRollResult(sides) {
+            // 1. Standard Random Roll
+            let rawRoll = Math.floor(Math.random() * sides) + 1;
+            let finalRoll = rawRoll;
+            let mode = "Standard";
+
+            // 2. If Karmic Mode is ON, we intervene
+            if (toggle.checked) {
+                const good = isGoodRoll(rawRoll, sides);
+
+                if (!good) {
+                    // We rolled BAD.
+                    // The higher the debt, the higher chance we intervene.
+                    // Base 25% chance per point of debt.
+                    let interventionChance = luckDebt * 0.25; 
+                    
+                    if (Math.random() < interventionChance) {
+                        // INTERVENTION! Secretly reroll
+                        let reroll = Math.floor(Math.random() * sides) + 1;
+                        
+                        // If the reroll is better, we take it!
+                        if (isGoodRoll(reroll, sides)) {
+                            finalRoll = reroll;
+                            luckDebt = Math.max(0, luckDebt - 2); // 'Pay' for the luck (reduce debt)
+                            mode = "Karmic Intervention (Saved)";
+                        } else {
+                            // Reroll was also bad. We keep the bad roll, but increase debt heavily.
+                            luckDebt++;
+                            mode = "Karmic Attempt (Failed)";
+                        }
+                    } else {
+                        // No intervention this time. Just bad luck.
+                        luckDebt++;
+                        mode = "Bad Luck (Debt Increased)";
+                    }
+                } else {
+                    // We rolled GOOD naturally.
+                    // Slightly reduce debt (cooling off), but don't punish them.
+                    if (luckDebt > 0) luckDebt--;
+                    mode = "Natural Good Roll";
+                }
+            }
+
+            // 3. Secret Developer Log (User won't see this unless they look for it)
+            if (toggle.checked) {
+                console.log(`[Rolled d${sides}] Raw: ${rawRoll} | Final: ${finalRoll} | Logic: ${mode} | Current Debt: ${luckDebt}`);
+            }
+
+            return finalRoll;
+        }
+
+        // UI Handling
+        function rollDice(sides) {
+            const resultDisplay = document.getElementById('result-value');
+            const labelDisplay = document.getElementById('result-label');
+            
+            // 1. Visual Shake
+            resultDisplay.classList.remove('rolling');
+            void resultDisplay.offsetWidth; // Trigger reflow
+            resultDisplay.classList.add('rolling');
+            
+            // 2. Show temporary "..."
+            resultDisplay.innerText = "...";
+            labelDisplay.innerText = `Rolling d${sides}...`;
+
+            // 3. Calculate result immediately (but wait to show it for effect)
+            const result = getRollResult(sides);
+
+            setTimeout(() => {
+                resultDisplay.innerText = result;
+                
+                // Color code the result based on your rules for visual flair
+                if (isGoodRoll(result, sides)) {
+                    resultDisplay.style.color = "#9ece6a"; // Green
+                    labelDisplay.innerText = "Success!";
+                } else {
+                    resultDisplay.style.color = "#f7768e"; // Red
+                    labelDisplay.innerText = "Roll Result";
+                }
+                
+            }, 400); // 400ms delay for animation
+        }
+    </script>
+</body>
+</html>
+```

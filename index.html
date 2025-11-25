@@ -10,7 +10,12 @@
             --card-color: #24283b;
             --text-color: #c0caf5;
             --accent-color: #7aa2f7;
-            --glow-color: #bb9af7; /* Purple/White for "Charged" state */
+            
+            /* Tier Colors */
+            --glow-blue: #7aa2f7;
+            --glow-purple: #bb9af7;
+            --glow-crimson: #f7768e;
+            --glow-gold: #e0af68;
         }
 
         body {
@@ -27,9 +32,7 @@
         }
 
         /* --- Header / Quantity Selector --- */
-        .top-bar {
-            margin-bottom: 30px;
-        }
+        .top-bar { margin-bottom: 30px; }
 
         .control-pill {
             background: var(--card-color);
@@ -74,21 +77,61 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            z-index: 1;
         }
 
         .die-btn:hover { background: var(--accent-color); transform: translateY(-2px); }
         .die-btn:active { transform: scale(0.95); }
 
-        /* --- THE CHARGED EFFECT (Debt >= 9) --- */
-        @keyframes powerPulse {
+        /* --- TIERED VISUAL EFFECTS --- */
+
+        /* Animation Definitions */
+        @keyframes pulseSlow {
+            0% { box-shadow: 0 0 0 0 rgba(122, 162, 247, 0.4); }
+            50% { box-shadow: 0 0 10px 0 rgba(122, 162, 247, 0.6); }
+            100% { box-shadow: 0 0 0 0 rgba(122, 162, 247, 0.4); }
+        }
+
+        @keyframes pulseMedium {
             0% { box-shadow: 0 0 0 0 rgba(187, 154, 247, 0.4); border-color: var(--accent-color); }
-            50% { box-shadow: 0 0 20px 0 rgba(187, 154, 247, 0.7); border-color: var(--glow-color); }
+            50% { box-shadow: 0 0 20px 0 rgba(187, 154, 247, 0.7); border-color: var(--glow-purple); }
             100% { box-shadow: 0 0 0 0 rgba(187, 154, 247, 0.4); border-color: var(--accent-color); }
         }
 
-        .die-btn.charged {
-            animation: powerPulse 2s infinite;
-            border-color: var(--glow-color);
+        @keyframes pulseFast {
+            0% { box-shadow: 0 0 5px 0 rgba(247, 118, 142, 0.5); border-color: var(--glow-crimson); }
+            50% { box-shadow: 0 0 25px 0 rgba(247, 118, 142, 0.9); border-color: white; }
+            100% { box-shadow: 0 0 5px 0 rgba(247, 118, 142, 0.5); border-color: var(--glow-crimson); }
+        }
+
+        @keyframes goldenGod {
+            0% { box-shadow: 0 0 10px 0 rgba(224, 175, 104, 0.6); border-color: var(--glow-gold); color: white;}
+            50% { box-shadow: 0 0 35px 5px rgba(224, 175, 104, 1); border-color: #fff; color: var(--glow-gold); }
+            100% { box-shadow: 0 0 10px 0 rgba(224, 175, 104, 0.6); border-color: var(--glow-gold); color: white;}
+        }
+
+        /* Tier Classes */
+        
+        /* Tier 1: Debt 6-7 (Blue) */
+        .glow-blue {
+            border-color: var(--glow-blue);
+            animation: pulseSlow 3s infinite;
+        }
+
+        /* Tier 2: Debt 8 (Purple) */
+        .glow-purple {
+            animation: pulseMedium 2s infinite;
+        }
+
+        /* Tier 3: Debt 9 (Crimson) */
+        .glow-crimson {
+            animation: pulseFast 1s infinite; /* Faster beat */
+        }
+
+        /* Tier 4: Debt 10+ (GOLD) */
+        .glow-gold {
+            animation: goldenGod 1.5s infinite; /* Intense shining */
+            border: 2px solid var(--glow-gold);
         }
 
         /* --- Result Display --- */
@@ -175,15 +218,25 @@
             document.getElementById('dice-count').innerText = diceCount;
         }
 
-        // Handles the "Charging" visual effect
+        // === VISUAL MANAGER ===
         function updateGridVisuals() {
             const buttons = document.querySelectorAll('.die-btn');
-            // VISUAL THRESHOLD: Debt >= 9 (81% chance)
-            if (luckDebt >= 9) {
-                buttons.forEach(btn => btn.classList.add('charged'));
-            } else {
-                buttons.forEach(btn => btn.classList.remove('charged'));
-            }
+            
+            buttons.forEach(btn => {
+                // Reset classes first
+                btn.classList.remove('glow-blue', 'glow-purple', 'glow-crimson', 'glow-gold');
+
+                // Apply new class based on Exponential Tiers
+                if (luckDebt >= 10) {
+                    btn.classList.add('glow-gold'); // 100% Guaranteed
+                } else if (luckDebt >= 9) {
+                    btn.classList.add('glow-crimson'); // 81% (High Danger/High Save)
+                } else if (luckDebt >= 8) {
+                    btn.classList.add('glow-purple'); // 64% (Magic)
+                } else if (luckDebt >= 6) {
+                    btn.classList.add('glow-blue'); // 36% (Waking Up)
+                }
+            });
         }
 
         // === INTERNAL LOGIC (Hidden) ===
@@ -202,7 +255,6 @@
 
             if (!good) {
                 // EXPONENTIAL CURVE: (Debt / 10)^2
-                // Debt 5 = 25% | Debt 8 = 64% | Debt 9 = 81% | Debt 10 = 100%
                 let interventionChance = Math.pow((luckDebt / 10), 2); 
                 
                 if (Math.random() < interventionChance) {
@@ -256,7 +308,7 @@
                     total += result.val;
                     resultsHTML += `<div class="mini-die">${result.val}</div>`;
                     
-                    // Detailed logging for dev verification
+                    // Detailed logging
                     consoleLogGroup.push(`Die ${i+1}: [${result.val}] (${result.msg}) | Help Chance was: ${result.chance}`);
                 }
 

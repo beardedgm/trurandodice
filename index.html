@@ -284,20 +284,22 @@
     <script>
         class KarmicDice {
             constructor() {
-                // Game State
-                this.luckDebt = 0;
+                // Default Config
+                this.defaultSettings = {
+                    maxDebt: 15,
+                    d20Threshold: 11,
+                    interventionRate: 0.10
+                };
+
+                // Load from LocalStorage or use Defaults
+                this.settings = this.loadSettings();
+                
+                // Game State (Not saved, resets on refresh usually, but we can save Debt too)
+                this.luckDebt = parseInt(localStorage.getItem('karmic_debt')) || 0;
+                
                 this.diceCount = 1;
                 this.modifier = 0;
                 this.history = [];
-                
-                // Config (Settings)
-                this.settings = {
-                    maxDebt: 15,
-                    d20Threshold: 11, // Standard "Good" roll for d20
-                    interventionRate: 0.10 // 10% per point of debt
-                };
-
-                // Secrets
                 this.secretClicks = 0;
                 this.clickTimer = null;
 
@@ -316,6 +318,17 @@
                 this.updateVisuals();
             }
 
+            // --- STORAGE HELPERS ---
+            loadSettings() {
+                const saved = localStorage.getItem('karmic_settings');
+                return saved ? JSON.parse(saved) : { ...this.defaultSettings };
+            }
+
+            saveToStorage() {
+                localStorage.setItem('karmic_settings', JSON.stringify(this.settings));
+                localStorage.setItem('karmic_debt', this.luckDebt);
+            }
+
             // --- USER ACTIONS ---
             adjustCount(amount) {
                 this.diceCount = Math.max(1, Math.min(10, this.diceCount + amount));
@@ -329,8 +342,6 @@
             // --- SECRET MENU ---
             handleHeaderClick() {
                 this.secretClicks++;
-                
-                // Reset click counter if inactive for 2 seconds
                 if (this.clickTimer) clearTimeout(this.clickTimer);
                 this.clickTimer = setTimeout(() => { this.secretClicks = 0; }, 2000);
 
@@ -350,13 +361,18 @@
             saveSettings() {
                 this.settings.maxDebt = parseInt(document.getElementById('setting-cap').value);
                 this.settings.d20Threshold = parseInt(document.getElementById('setting-threshold').value);
+                
+                // Save to browser storage
+                this.saveToStorage();
+                
                 this.ui.modal.style.display = 'none';
-                console.log("Settings Updated:", this.settings);
+                console.log("Settings Saved to Storage:", this.settings);
             }
 
             resetKarma() {
                 this.luckDebt = 0;
                 document.getElementById('setting-debt').value = 0;
+                this.saveToStorage(); // Save the reset
                 this.updateVisuals();
                 console.log("Karma Reset");
             }
@@ -376,51 +392,43 @@
                 const good = this.isGoodRoll(rawRoll, sides);
 
                 if (!good) {
-                    // Calculate Chance: (Debt / 10)^2
-                    // Cap debt logic helps here
                     let effectiveDebt = Math.min(this.luckDebt, this.settings.maxDebt);
                     let interventionChance = Math.pow((effectiveDebt / 10), 2);
 
                     if (Math.random() < interventionChance) {
-                        // Secret Reroll
                         let reroll = Math.floor(Math.random() * sides) + 1;
                         if (this.isGoodRoll(reroll, sides)) {
                             finalRoll = reroll;
-                            this.luckDebt = Math.max(0, this.luckDebt - 2); // Cost of saving
+                            this.luckDebt = Math.max(0, this.luckDebt - 2);
                             logMsg = "SAVED (Karmic)";
                             saved = true;
                         } else {
-                            this.luckDebt++; // Failed save, debt grows
+                            this.luckDebt++;
                             logMsg = "FAILED SAVE";
                         }
                     } else {
-                        this.luckDebt++; // No intervention, debt grows
+                        this.luckDebt++;
                         logMsg = "Bad Luck";
                     }
                 } else {
-                    // Natural Good
                     if (this.luckDebt > 0) this.luckDebt--;
                     logMsg = "Natural Good";
                 }
 
-                // Hard Cap debt finally
                 this.luckDebt = Math.min(this.luckDebt, this.settings.maxDebt);
+                
+                // AUTO-SAVE DEBT AFTER EVERY ROLL
+                this.saveToStorage(); 
 
-                return { 
-                    val: finalRoll, 
-                    msg: logMsg, 
-                    wasSaved: saved 
-                };
+                return { val: finalRoll, msg: logMsg, wasSaved: saved };
             }
 
             // --- EXECUTION ---
             roll(sides) {
-                // Reset Anim
-                this.ui.total.className = ""; // Remove crit classes
+                this.ui.total.className = "";
                 this.ui.total.classList.remove('rolling');
-                void this.ui.total.offsetWidth; // Trigger reflow
+                void this.ui.total.offsetWidth;
                 
-                // Loading State
                 this.ui.total.innerText = "...";
                 this.ui.subtext.innerText = "";
                 this.ui.details.innerHTML = "";
@@ -437,7 +445,6 @@
                         let result = this.getSingleRoll(sides);
                         sum += result.val;
                         
-                        // Style individual results
                         let dieClass = "mini-die";
                         if (sides === 20 && result.val === 20) { dieClass += " text-gold"; hasNat20 = true; }
                         if (sides === 20 && result.val === 1) { dieClass += " text-red"; hasNat1 = true; }
@@ -446,25 +453,20 @@
                         consoleLogGroup.push(`[${result.val}] ${result.msg}`);
                     }
 
-                    // Apply Mod
                     let finalTotal = sum + this.modifier;
                     let sign = this.modifier >= 0 ? "+" : "";
                     let formula = this.modifier !== 0 ? `(${sum} ${sign} ${this.modifier})` : "";
 
-                    // Update UI
                     this.ui.total.innerText = finalTotal;
                     this.ui.subtext.innerText = formula;
                     this.ui.details.innerHTML = resultsHTML;
                     this.ui.label.innerText = "Result";
 
-                    // CRIT ANIMATIONS
-                    // Prioritize Nat 20 visual over Nat 1 if both exist (mixed success)
                     if (hasNat20) {
                         this.ui.total.classList.add('crit-success-anim');
                         this.ui.label.innerText = "CRITICAL SUCCESS";
                         this.ui.label.style.color = "var(--gold-color)";
                     } else if (hasNat1 && this.diceCount === 1) {
-                        // Only shake on Nat 1 if it's a single die roll (avoids shaking on mixed pools)
                         this.ui.total.classList.add('crit-fail-anim');
                         this.ui.label.innerText = "CRITICAL FAIL";
                         this.ui.label.style.color = "var(--danger-color)";
@@ -472,19 +474,15 @@
                         this.ui.label.style.color = "#565f89";
                     }
 
-                    // Log History
                     this.addToHistory(this.diceCount, sides, this.modifier, finalTotal);
-
-                    // Update Visuals (Buttons)
                     this.updateVisuals();
 
-                    // Dev Logs
                     console.group(`Rolled ${this.diceCount}d${sides} ${sign}${this.modifier}`);
                     consoleLogGroup.forEach(l => console.log(l));
                     console.log(`Current Debt: ${this.luckDebt}`);
                     console.groupEnd();
 
-                }, 400); // Fake delay
+                }, 400);
             }
 
             addToHistory(count, sides, mod, total) {
@@ -493,8 +491,6 @@
                 item.className = "history-item";
                 item.innerHTML = `<span>${count}d${sides}${modStr}</span> <span>${total}</span>`;
                 this.ui.historyList.prepend(item);
-                
-                // Keep max 10
                 if (this.ui.historyList.children.length > 10) {
                     this.ui.historyList.lastElementChild.remove();
                 }
@@ -503,7 +499,6 @@
             updateVisuals() {
                 this.ui.buttons.forEach(btn => {
                     btn.classList.remove('glow-blue', 'glow-purple', 'glow-crimson', 'glow-gold');
-                    
                     if (this.luckDebt >= 10) btn.classList.add('glow-gold');
                     else if (this.luckDebt >= 9) btn.classList.add('glow-crimson');
                     else if (this.luckDebt >= 8) btn.classList.add('glow-purple');
@@ -512,7 +507,6 @@
             }
         }
 
-        // Initialize
         const game = new KarmicDice();
     </script>
 </body>

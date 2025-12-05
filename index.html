@@ -81,19 +81,12 @@
         /* --- Dice Grid --- */
         .dice-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr); /* 3 columns for d4-d100 */
+            grid-template-columns: repeat(3, 1fr);
             gap: 12px;
             max-width: 500px;
             width: 100%;
         }
 
-        /* Add d100 support breaks the symmetry of 6 buttons, so we have 7 now. 
-           Let's make the last one span full width or adjust grid. 
-           Grid of 3 columns: 
-           d4 d6 d8
-           d10 d12 d20
-           d100 (centered)
-        */
         .die-btn {
             background: var(--card-color);
             border: 2px solid var(--accent-color);
@@ -162,23 +155,68 @@
             color: #ccc;
         }
 
-        /* --- History Log --- */
+        /* --- History Log (Pills) --- */
         .history-container {
             margin-top: 30px;
             width: 100%;
             max-width: 500px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 10px;
-            padding: 10px;
-            font-size: 0.9rem;
         }
-        .history-title { color: #565f89; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 0 5px;
+        }
+
+        .history-title { color: #565f89; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; }
+        
+        .clear-btn {
+            background: transparent;
+            border: 1px solid #565f89;
+            color: #565f89;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .clear-btn:hover { background: #565f89; color: white; }
+
         .history-list {
-            display: flex; flex-direction: column; gap: 5px;
-            max-height: 100px; overflow-y: auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
         }
-        .history-item { display: flex; justify-content: space-between; color: #787c99; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px;}
-        .history-item span:last-child { color: var(--text-color); font-weight: bold; }
+
+        .history-pill {
+            background: var(--card-color);
+            border: 1px solid rgba(122, 162, 247, 0.3);
+            border-radius: 50px; /* Pill Shape */
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            color: #787c99;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+        }
+
+        .history-pill:hover {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(122, 162, 247, 0.3);
+        }
+
+        .history-pill:active { transform: scale(0.95); }
+        .history-pill .result-preview { font-weight: bold; color: var(--text-color); }
+        .history-pill:hover .result-preview { color: white; }
 
         /* --- Crit Animations --- */
         .crit-fail-anim { animation: severeShake 0.5s cubic-bezier(.36,.07,.19,.97) both; color: var(--danger-color) !important; text-shadow: 0 0 15px var(--danger-color) !important; }
@@ -252,7 +290,10 @@
     </div>
 
     <div class="history-container">
-        <div class="history-title">Roll History</div>
+        <div class="history-header">
+            <div class="history-title">History (Click to Reroll)</div>
+            <button class="clear-btn" onclick="game.clearHistory()">Clear</button>
+        </div>
         <div id="history-list" class="history-list">
             </div>
     </div>
@@ -294,12 +335,10 @@
                 // Load from LocalStorage or use Defaults
                 this.settings = this.loadSettings();
                 
-                // Game State (Not saved, resets on refresh usually, but we can save Debt too)
+                // Game State
                 this.luckDebt = parseInt(localStorage.getItem('karmic_debt')) || 0;
-                
                 this.diceCount = 1;
                 this.modifier = 0;
-                this.history = [];
                 this.secretClicks = 0;
                 this.clickTimer = null;
 
@@ -310,6 +349,7 @@
                     label: document.getElementById('result-label'),
                     subtext: document.getElementById('result-subtext'),
                     count: document.getElementById('dice-count-display'),
+                    modInput: document.getElementById('mod-input'),
                     historyList: document.getElementById('history-list'),
                     modal: document.getElementById('settings-modal'),
                     buttons: document.querySelectorAll('.die-btn')
@@ -361,20 +401,15 @@
             saveSettings() {
                 this.settings.maxDebt = parseInt(document.getElementById('setting-cap').value);
                 this.settings.d20Threshold = parseInt(document.getElementById('setting-threshold').value);
-                
-                // Save to browser storage
                 this.saveToStorage();
-                
                 this.ui.modal.style.display = 'none';
-                console.log("Settings Saved to Storage:", this.settings);
             }
 
             resetKarma() {
                 this.luckDebt = 0;
                 document.getElementById('setting-debt').value = 0;
-                this.saveToStorage(); // Save the reset
+                this.saveToStorage();
                 this.updateVisuals();
-                console.log("Karma Reset");
             }
 
             // --- CORE LOGIC ---
@@ -416,8 +451,6 @@
                 }
 
                 this.luckDebt = Math.min(this.luckDebt, this.settings.maxDebt);
-                
-                // AUTO-SAVE DEBT AFTER EVERY ROLL
                 this.saveToStorage(); 
 
                 return { val: finalRoll, msg: logMsg, wasSaved: saved };
@@ -488,12 +521,39 @@
             addToHistory(count, sides, mod, total) {
                 let modStr = mod !== 0 ? (mod > 0 ? `+${mod}` : mod) : "";
                 let item = document.createElement('div');
-                item.className = "history-item";
-                item.innerHTML = `<span>${count}d${sides}${modStr}</span> <span>${total}</span>`;
+                item.className = "history-pill";
+                // Add click handler to reroll
+                item.onclick = () => this.rerollFromHistory(count, sides, mod);
+                
+                // Add Pill Content
+                item.innerHTML = `
+                    <span>${count}d${sides}${modStr}</span> 
+                    <span class="result-preview">${total}</span>
+                `;
+                
                 this.ui.historyList.prepend(item);
-                if (this.ui.historyList.children.length > 10) {
+                
+                // Keep max 15 pills
+                if (this.ui.historyList.children.length > 15) {
                     this.ui.historyList.lastElementChild.remove();
                 }
+            }
+
+            rerollFromHistory(count, sides, mod) {
+                // Set Game State to Match History
+                this.diceCount = count;
+                this.modifier = mod;
+                
+                // Update Inputs
+                this.ui.count.innerText = count;
+                this.ui.modInput.value = mod;
+
+                // Roll
+                this.roll(sides);
+            }
+
+            clearHistory() {
+                this.ui.historyList.innerHTML = "";
             }
 
             updateVisuals() {

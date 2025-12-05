@@ -1,1 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dice Roller</title>
+    <style>
+        :root {
+            --bg-color: #1a1b26;
+            --card-color: #24283b;
+            --text-color: #c0caf5;
+            --accent-color: #7aa2f7;
+            --danger-color: #f7768e;
+            --gold-color: #e0af68;
+            
+            /* Tier Colors */
+            --glow-blue: #7aa2f7;
+            --glow-purple: #bb9af7;
+            --glow-crimson: #f7768e;
+            --glow-gold: #e0af68;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+
+        /* --- Header & Settings --- */
+        header { text-align: center; margin-bottom: 20px; cursor: pointer; }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; text-transform: uppercase; color: #565f89; transition: color 0.3s;}
+        h1:hover { color: var(--text-color); }
+
+        /* --- Controls (Count & Mod) --- */
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .control-pill {
+            background: var(--card-color);
+            padding: 5px 15px;
+            border-radius: 50px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 40px;
+        }
+
+        .label-text { font-weight: bold; font-size: 0.9rem; color: #787c99; }
+        
+        .qty-btn {
+            background: var(--accent-color);
+            border: none; color: white; width: 25px; height: 25px; border-radius: 50%;
+            cursor: pointer; font-weight: bold; font-size: 1.2rem; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .qty-btn:hover { filter: brightness(1.2); }
+        
+        .value-display { font-size: 1.2rem; font-weight: bold; min-width: 25px; text-align: center; color: white;}
+        
+        /* Modifier Input Specifics */
+        .mod-input {
+            background: transparent; border: none; color: white; 
+            font-size: 1.2rem; font-weight: bold; width: 40px; 
+            text-align: center; outline: none; border-bottom: 2px solid var(--accent-color);
+        }
+
+        /* --- Dice Grid --- */
+        .dice-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 3 columns for d4-d100 */
+            gap: 12px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        /* Add d100 support breaks the symmetry of 6 buttons, so we have 7 now. 
+           Let's make the last one span full width or adjust grid. 
+           Grid of 3 columns: 
+           d4 d6 d8
+           d10 d12 d20
+           d100 (centered)
+        */
+        .die-btn {
+            background: var(--card-color);
+            border: 2px solid var(--accent-color);
+            color: white;
+            font-size: 1.1rem;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .die-btn.span-col { grid-column: span 3; }
+
+        .die-btn:hover { background: var(--accent-color); transform: translateY(-2px); }
+        .die-btn:active { transform: scale(0.95); }
+
+        /* --- Visual Effects (Tiers) --- */
+        @keyframes pulseSlow { 0% { box-shadow: 0 0 0 0 rgba(122,162,247,0.4); } 50% { box-shadow: 0 0 10px 0 rgba(122,162,247,0.6); } 100% { box-shadow: 0 0 0 0 rgba(122,162,247,0.4); } }
+        @keyframes pulseMedium { 0% { box-shadow: 0 0 0 0 rgba(187,154,247,0.4); border-color: var(--accent-color); } 50% { box-shadow: 0 0 15px 0 rgba(187,154,247,0.7); border-color: var(--glow-purple); } 100% { box-shadow: 0 0 0 0 rgba(187,154,247,0.4); border-color: var(--accent-color); } }
+        @keyframes pulseFast { 0% { box-shadow: 0 0 5px 0 rgba(247,118,142,0.5); border-color: var(--glow-crimson); } 50% { box-shadow: 0 0 20px 0 rgba(247,118,142,0.9); border-color: white; } 100% { box-shadow: 0 0 5px 0 rgba(247,118,142,0.5); border-color: var(--glow-crimson); } }
+        @keyframes goldenGod { 0% { box-shadow: 0 0 10px 0 rgba(224,175,104,0.6); border-color: var(--glow-gold); color: white;} 50% { box-shadow: 0 0 30px 5px rgba(224,175,104,1); border-color: #fff; color: var(--glow-gold); } 100% { box-shadow: 0 0 10px 0 rgba(224,175,104,0.6); border-color: var(--glow-gold); color: white;} }
+
+        .glow-blue { border-color: var(--glow-blue); animation: pulseSlow 3s infinite; }
+        .glow-purple { animation: pulseMedium 2s infinite; }
+        .glow-crimson { animation: pulseFast 1s infinite; }
+        .glow-gold { animation: goldenGod 1.5s infinite; border: 2px solid var(--glow-gold); }
+
+        /* --- Result Display --- */
+        .result-area {
+            margin-top: 30px;
+            text-align: center;
+            min-height: 120px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        #result-label { font-size: 1rem; color: #565f89; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;}
+        
+        #result-total {
+            font-size: 4.5rem;
+            font-weight: bold;
+            margin: 0;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            color: var(--text-color);
+            line-height: 1;
+        }
+        
+        #result-subtext { font-size: 1rem; color: #787c99; margin-top: -5px; height: 1.2rem;}
+
+        #result-details {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .mini-die {
+            background: rgba(255,255,255,0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 1rem;
+            color: #ccc;
+        }
+
+        /* --- History Log --- */
+        .history-container {
+            margin-top: 30px;
+            width: 100%;
+            max-width: 500px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 0.9rem;
+        }
+        .history-title { color: #565f89; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
+        .history-list {
+            display: flex; flex-direction: column; gap: 5px;
+            max-height: 100px; overflow-y: auto;
+        }
+        .history-item { display: flex; justify-content: space-between; color: #787c99; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px;}
+        .history-item span:last-child { color: var(--text-color); font-weight: bold; }
+
+        /* --- Crit Animations --- */
+        .crit-fail-anim { animation: severeShake 0.5s cubic-bezier(.36,.07,.19,.97) both; color: var(--danger-color) !important; text-shadow: 0 0 15px var(--danger-color) !important; }
+        .crit-success-anim { animation: goldFlash 0.5s ease-out both; color: var(--gold-color) !important; text-shadow: 0 0 20px var(--gold-color) !important; }
+
+        @keyframes severeShake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+        @keyframes goldFlash {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.2); filter: brightness(2); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* --- Modal (Hidden Settings) --- */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: var(--card-color); padding: 25px; border-radius: 15px; width: 90%; max-width: 350px;
+            border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-header { font-size: 1.2rem; font-weight: bold; margin-bottom: 15px; color: white; border-bottom: 1px solid #444; padding-bottom: 10px;}
+        .setting-row { margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .setting-row label { color: #ccc; font-size: 0.9rem; }
+        .setting-input { background: rgba(0,0,0,0.3); border: 1px solid #555; color: white; padding: 5px; width: 60px; text-align: center; border-radius: 5px;}
+        .btn-action { width: 100%; padding: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-save { background: var(--accent-color); color: white; }
+        .btn-reset { background: var(--danger-color); color: white; margin-top: 5px;}
+    </style>
+</head>
+<body>
+
+    <header onclick="game.handleHeaderClick()">
+        <h1 id="app-title">Dice Roller</h1>
+    </header>
+
+    <div class="controls-row">
+        <div class="control-pill">
+            <span class="label-text">Dice:</span>
+            <button class="qty-btn" onclick="game.adjustCount(-1)">-</button>
+            <span id="dice-count-display" class="value-display">1</span>
+            <button class="qty-btn" onclick="game.adjustCount(1)">+</button>
+        </div>
+
+        <div class="control-pill">
+            <span class="label-text">Mod:</span>
+            <input type="number" id="mod-input" class="mod-input" value="0" onchange="game.updateMod(this.value)">
+        </div>
+    </div>
+
+    <div class="dice-grid">
+        <button class="die-btn" onclick="game.roll(4)">d4</button>
+        <button class="die-btn" onclick="game.roll(6)">d6</button>
+        <button class="die-btn" onclick="game.roll(8)">d8</button>
+        <button class="die-btn" onclick="game.roll(10)">d10</button>
+        <button class="die-btn" onclick="game.roll(12)">d12</button>
+        <button class="die-btn" onclick="game.roll(20)">d20</button>
+        <button class="die-btn span-col" onclick="game.roll(100)">d100</button>
+    </div>
+
+    <div class="result-area">
+        <p id="result-label">Ready</p>
+        <h1 id="result-total">--</h1>
+        <p id="result-subtext"></p>
+        <div id="result-details"></div>
+    </div>
+
+    <div class="history-container">
+        <div class="history-title">Roll History</div>
+        <div id="history-list" class="history-list">
+            </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">GM Settings</div>
+            
+            <div class="setting-row">
+                <label>Current Luck Debt:</label>
+                <input type="number" id="setting-debt" class="setting-input" readonly>
+            </div>
+
+            <div class="setting-row">
+                <label>Max Debt Cap:</label>
+                <input type="number" id="setting-cap" class="setting-input" value="15">
+            </div>
+
+            <div class="setting-row">
+                <label>d20 "Good" Threshold:</label>
+                <input type="number" id="setting-threshold" class="setting-input" value="11">
+            </div>
+            
+            <button class="btn-action btn-save" onclick="game.saveSettings()">Close & Save</button>
+            <button class="btn-action btn-reset" onclick="game.resetKarma()">Reset Karma</button>
+        </div>
+    </div>
+
+    <script>
+        class KarmicDice {
+            constructor() {
+                // Game State
+                this.luckDebt = 0;
+                this.diceCount = 1;
+                this.modifier = 0;
+                this.history = [];
+                
+                // Config (Settings)
+                this.settings = {
+                    maxDebt: 15,
+                    d20Threshold: 11, // Standard "Good" roll for d20
+                    interventionRate: 0.10 // 10% per point of debt
+                };
+
+                // Secrets
+                this.secretClicks = 0;
+                this.clickTimer = null;
+
+                // DOM Elements
+                this.ui = {
+                    total: document.getElementById('result-total'),
+                    details: document.getElementById('result-details'),
+                    label: document.getElementById('result-label'),
+                    subtext: document.getElementById('result-subtext'),
+                    count: document.getElementById('dice-count-display'),
+                    historyList: document.getElementById('history-list'),
+                    modal: document.getElementById('settings-modal'),
+                    buttons: document.querySelectorAll('.die-btn')
+                };
+
+                this.updateVisuals();
+            }
+
+            // --- USER ACTIONS ---
+            adjustCount(amount) {
+                this.diceCount = Math.max(1, Math.min(10, this.diceCount + amount));
+                this.ui.count.innerText = this.diceCount;
+            }
+
+            updateMod(val) {
+                this.modifier = parseInt(val) || 0;
+            }
+
+            // --- SECRET MENU ---
+            handleHeaderClick() {
+                this.secretClicks++;
+                
+                // Reset click counter if inactive for 2 seconds
+                if (this.clickTimer) clearTimeout(this.clickTimer);
+                this.clickTimer = setTimeout(() => { this.secretClicks = 0; }, 2000);
+
+                if (this.secretClicks >= 5) {
+                    this.openSettings();
+                    this.secretClicks = 0;
+                }
+            }
+
+            openSettings() {
+                document.getElementById('setting-debt').value = this.luckDebt;
+                document.getElementById('setting-cap').value = this.settings.maxDebt;
+                document.getElementById('setting-threshold').value = this.settings.d20Threshold;
+                this.ui.modal.style.display = 'flex';
+            }
+
+            saveSettings() {
+                this.settings.maxDebt = parseInt(document.getElementById('setting-cap').value);
+                this.settings.d20Threshold = parseInt(document.getElementById('setting-threshold').value);
+                this.ui.modal.style.display = 'none';
+                console.log("Settings Updated:", this.settings);
+            }
+
+            resetKarma() {
+                this.luckDebt = 0;
+                document.getElementById('setting-debt').value = 0;
+                this.updateVisuals();
+                console.log("Karma Reset");
+            }
+
+            // --- CORE LOGIC ---
+            isGoodRoll(val, sides) {
+                if (sides === 20) return val >= this.settings.d20Threshold;
+                return val > (sides / 2);
+            }
+
+            getSingleRoll(sides) {
+                let rawRoll = Math.floor(Math.random() * sides) + 1;
+                let finalRoll = rawRoll;
+                let logMsg = "Standard";
+                let saved = false;
+
+                const good = this.isGoodRoll(rawRoll, sides);
+
+                if (!good) {
+                    // Calculate Chance: (Debt / 10)^2
+                    // Cap debt logic helps here
+                    let effectiveDebt = Math.min(this.luckDebt, this.settings.maxDebt);
+                    let interventionChance = Math.pow((effectiveDebt / 10), 2);
+
+                    if (Math.random() < interventionChance) {
+                        // Secret Reroll
+                        let reroll = Math.floor(Math.random() * sides) + 1;
+                        if (this.isGoodRoll(reroll, sides)) {
+                            finalRoll = reroll;
+                            this.luckDebt = Math.max(0, this.luckDebt - 2); // Cost of saving
+                            logMsg = "SAVED (Karmic)";
+                            saved = true;
+                        } else {
+                            this.luckDebt++; // Failed save, debt grows
+                            logMsg = "FAILED SAVE";
+                        }
+                    } else {
+                        this.luckDebt++; // No intervention, debt grows
+                        logMsg = "Bad Luck";
+                    }
+                } else {
+                    // Natural Good
+                    if (this.luckDebt > 0) this.luckDebt--;
+                    logMsg = "Natural Good";
+                }
+
+                // Hard Cap debt finally
+                this.luckDebt = Math.min(this.luckDebt, this.settings.maxDebt);
+
+                return { 
+                    val: finalRoll, 
+                    msg: logMsg, 
+                    wasSaved: saved 
+                };
+            }
+
+            // --- EXECUTION ---
+            roll(sides) {
+                // Reset Anim
+                this.ui.total.className = ""; // Remove crit classes
+                this.ui.total.classList.remove('rolling');
+                void this.ui.total.offsetWidth; // Trigger reflow
+                
+                // Loading State
+                this.ui.total.innerText = "...";
+                this.ui.subtext.innerText = "";
+                this.ui.details.innerHTML = "";
+                this.ui.label.innerText = "Rolling...";
+                
+                setTimeout(() => {
+                    let sum = 0;
+                    let resultsHTML = "";
+                    let consoleLogGroup = [];
+                    let hasNat20 = false;
+                    let hasNat1 = false;
+
+                    for (let i = 0; i < this.diceCount; i++) {
+                        let result = this.getSingleRoll(sides);
+                        sum += result.val;
+                        
+                        // Style individual results
+                        let dieClass = "mini-die";
+                        if (sides === 20 && result.val === 20) { dieClass += " text-gold"; hasNat20 = true; }
+                        if (sides === 20 && result.val === 1) { dieClass += " text-red"; hasNat1 = true; }
+
+                        resultsHTML += `<div class="${dieClass}">${result.val}</div>`;
+                        consoleLogGroup.push(`[${result.val}] ${result.msg}`);
+                    }
+
+                    // Apply Mod
+                    let finalTotal = sum + this.modifier;
+                    let sign = this.modifier >= 0 ? "+" : "";
+                    let formula = this.modifier !== 0 ? `(${sum} ${sign} ${this.modifier})` : "";
+
+                    // Update UI
+                    this.ui.total.innerText = finalTotal;
+                    this.ui.subtext.innerText = formula;
+                    this.ui.details.innerHTML = resultsHTML;
+                    this.ui.label.innerText = "Result";
+
+                    // CRIT ANIMATIONS
+                    // Prioritize Nat 20 visual over Nat 1 if both exist (mixed success)
+                    if (hasNat20) {
+                        this.ui.total.classList.add('crit-success-anim');
+                        this.ui.label.innerText = "CRITICAL SUCCESS";
+                        this.ui.label.style.color = "var(--gold-color)";
+                    } else if (hasNat1 && this.diceCount === 1) {
+                        // Only shake on Nat 1 if it's a single die roll (avoids shaking on mixed pools)
+                        this.ui.total.classList.add('crit-fail-anim');
+                        this.ui.label.innerText = "CRITICAL FAIL";
+                        this.ui.label.style.color = "var(--danger-color)";
+                    } else {
+                        this.ui.label.style.color = "#565f89";
+                    }
+
+                    // Log History
+                    this.addToHistory(this.diceCount, sides, this.modifier, finalTotal);
+
+                    // Update Visuals (Buttons)
+                    this.updateVisuals();
+
+                    // Dev Logs
+                    console.group(`Rolled ${this.diceCount}d${sides} ${sign}${this.modifier}`);
+                    consoleLogGroup.forEach(l => console.log(l));
+                    console.log(`Current Debt: ${this.luckDebt}`);
+                    console.groupEnd();
+
+                }, 400); // Fake delay
+            }
+
+            addToHistory(count, sides, mod, total) {
+                let modStr = mod !== 0 ? (mod > 0 ? `+${mod}` : mod) : "";
+                let item = document.createElement('div');
+                item.className = "history-item";
+                item.innerHTML = `<span>${count}d${sides}${modStr}</span> <span>${total}</span>`;
+                this.ui.historyList.prepend(item);
+                
+                // Keep max 10
+                if (this.ui.historyList.children.length > 10) {
+                    this.ui.historyList.lastElementChild.remove();
+                }
+            }
+
+            updateVisuals() {
+                this.ui.buttons.forEach(btn => {
+                    btn.classList.remove('glow-blue', 'glow-purple', 'glow-crimson', 'glow-gold');
+                    
+                    if (this.luckDebt >= 10) btn.classList.add('glow-gold');
+                    else if (this.luckDebt >= 9) btn.classList.add('glow-crimson');
+                    else if (this.luckDebt >= 8) btn.classList.add('glow-purple');
+                    else if (this.luckDebt >= 6) btn.classList.add('glow-blue');
+                });
+            }
+        }
+
+        // Initialize
+        const game = new KarmicDice();
+    </script>
+</body>
+</html>
